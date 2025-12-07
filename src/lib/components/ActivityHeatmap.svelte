@@ -1,5 +1,5 @@
 <script lang="ts">
-    import type { DailyActivity } from './stores/dailyActivity';
+    import type { DailyActivity } from './stores/dailyActivityStore';
     import type { Writable } from 'svelte/store';
 
     export let activityStore: Writable<DailyActivity[]>;
@@ -16,9 +16,72 @@
     let months: Array<{ name: string; column: number }> = [];
     let maxMinutes = 0;
 
+    // Statistics
+    let dailyAverage = 0;
+    let daysActivePercent = 0;
+    let longestStreak = 0;
+    let currentStreak = 0;
+
     $: activities = $activityStore;
     $: if (activities) {
         generateGrid();
+        calculateStats();
+    }
+
+    function calculateStats() {
+        if (!activities || activities.length === 0) {
+            dailyAverage = 0;
+            daysActivePercent = 0;
+            longestStreak = 0;
+            currentStreak = 0;
+            return;
+        }
+
+        // Daily Average (in hours)
+        const totalMinutes = activities.reduce((sum, a) => sum + a.totalMinutes, 0);
+        dailyAverage = totalMinutes / 60 / activities.length;
+
+        // Days Active Percent (from first activity to today)
+        const dates = activities.map(a => new Date(a.date)).sort((a, b) => a.getTime() - b.getTime());
+        const firstDate = dates[0];
+        const today = new Date();
+        const daysSinceFirst = Math.floor((today.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        daysActivePercent = (activities.length / daysSinceFirst) * 100;
+
+        // Calculate streaks
+        const activityDates = new Set(activities.map(a => a.date));
+
+        // Longest streak
+        let maxStreak = 0;
+        let tempStreak = 0;
+        const checkDate = new Date(firstDate);
+
+        while (checkDate <= today) {
+            const dateStr = checkDate.toISOString().split('T')[0];
+            if (activityDates.has(dateStr)) {
+                tempStreak++;
+                maxStreak = Math.max(maxStreak, tempStreak);
+            } else {
+                tempStreak = 0;
+            }
+            checkDate.setDate(checkDate.getDate() + 1);
+        }
+        longestStreak = maxStreak;
+
+        // Current streak (counting backwards from today)
+        let currentStreakCount = 0;
+        const todayCheck = new Date();
+
+        while (true) {
+            const dateStr = todayCheck.toISOString().split('T')[0];
+            if (activityDates.has(dateStr)) {
+                currentStreakCount++;
+                todayCheck.setDate(todayCheck.getDate() - 1);
+            } else {
+                break;
+            }
+        }
+        currentStreak = currentStreakCount;
     }
 
     function generateGrid() {
@@ -166,6 +229,26 @@
         </div>
     </div>
 
+    <!-- Statistics -->
+    <div class="stats">
+        <div class="stat-item">
+            <span class="stat-label">Daily Average:</span>
+            <span class="stat-value">{dailyAverage.toFixed(1)}h</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Days Active:</span>
+            <span class="stat-value">{daysActivePercent.toFixed(0)}%</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Longest Streak:</span>
+            <span class="stat-value">{longestStreak} days</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Current Streak:</span>
+            <span class="stat-value">{currentStreak} days</span>
+        </div>
+    </div>
+
     <!-- Legend -->
     <div class="legend">
         <span class="legend-label">Less</span>
@@ -266,7 +349,7 @@
         align-items: center;
         gap: 4px;
         margin-top: 16px;
-        justify-content: flex-end;
+        margin-left: 42px;
         font-size: 11px;
         color: #666;
     }
@@ -279,5 +362,30 @@
         width: 10px;
         height: 10px;
         border-radius: 2px;
+    }
+
+    .stats {
+        display: flex;
+        gap: 24px;
+        margin-top: 20px;
+        margin-left: 42px;
+        font-size: 12px;
+    }
+
+    .stat-item {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .stat-label {
+        color: #666;
+        font-size: 11px;
+    }
+
+    .stat-value {
+        color: #333;
+        font-weight: 600;
+        font-size: 14px;
     }
 </style>
