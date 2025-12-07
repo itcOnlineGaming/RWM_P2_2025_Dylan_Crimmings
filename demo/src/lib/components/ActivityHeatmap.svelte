@@ -1,6 +1,12 @@
 <script lang="ts">
-    import type { DailyActivity } from './stores/dailyActivityStore';
     import type { Writable } from 'svelte/store';
+    import type { DailyActivity } from '../../stores/dailyActivity';
+
+    // User must provide a store with this interface
+    /*export interface DailyActivity {
+        date: string; // date string (YYYY-MM-DD)
+        totalMinutes: number; // Total minutes worked that day
+    } */
 
     export let activityStore: Writable<DailyActivity[]>;
 
@@ -9,6 +15,7 @@
         dateString: string;
         minutes: number;
         intensity: number; // 0-4 scale for color intensity
+        beforeFirstActivity?: boolean; // Mark cells before any activity started
     }
 
     let activities: DailyActivity[] = [];
@@ -111,6 +118,13 @@
             });
         }
 
+        // Find the first activity date
+        let firstActivityDate: Date | null = null;
+        if (activities && activities.length > 0) {
+            const dates = activities.map(a => new Date(a.date)).sort((a, b) => a.getTime() - b.getTime());
+            firstActivityDate = dates[0];
+        }
+
         // Calculate max minutes for scaling
         maxMinutes = activities && activities.length > 0 ? Math.max(...activities.map(a => a.totalMinutes), 1) : 1;
 
@@ -127,13 +141,17 @@
             const minutes = activityMap.get(dateString) || 0;
             const intensity = minutes > 0 ? Math.min(4, Math.ceil((minutes / maxMinutes) * 4)) : 0;
 
+            // Check if this date is before the first activity
+            const isBeforeFirstActivity = firstActivityDate && currentDate < firstActivityDate;
+
             const dayOfWeek = currentDate.getDay();
 
             tempGrid[dayOfWeek].push({
                 date: new Date(currentDate),
                 dateString,
                 minutes,
-                intensity
+                intensity,
+                beforeFirstActivity: isBeforeFirstActivity
             });
 
             // Track month changes for labels
@@ -196,8 +214,12 @@
     <div class="heatmap">
         <!-- Day labels -->
         <div class="day-labels">
-            {#each dayLabels as label}
-                <div class="day-label">{label}</div>
+            {#each dayLabels as label, i}
+                {#if i % 2 === 1}
+                    <div class="day-label">{label}</div>
+                {:else}
+                    <div class="day-label-spacer"></div>
+                {/if}
             {/each}
         </div>
 
@@ -219,6 +241,7 @@
                             <div
                                     class="cell"
                                     class:empty={cell.minutes === 0}
+                                    class:before-activity={cell.beforeFirstActivity}
                                     style="background-color: {getColor(cell.intensity)}"
                                     title={formatTooltip(cell)}
                             ></div>
@@ -342,6 +365,17 @@
 
     .cell.empty {
         opacity: 0.8;
+    }
+
+    .cell.before-activity {
+        background-color: #1a1a1a !important;
+        opacity: 0.15;
+        cursor: default;
+    }
+
+    .cell.before-activity:hover {
+        outline: none;
+        transform: none;
     }
 
     .legend {
