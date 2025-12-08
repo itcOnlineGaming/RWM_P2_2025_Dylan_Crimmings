@@ -1,6 +1,8 @@
 # Activity Heatmap Svelte Component
 A heatmap displaying user activity, styled after the github user activity heatmap, and the anki heatmap extension.
 
+Displays activity for a date as colour graded blocks for that date. Also displays daily average, days active expressed as a percent, longest streak of active days, and current streak of active days.
+
 ## How to Include in your project
 
 1. Add the component file to your component folder
